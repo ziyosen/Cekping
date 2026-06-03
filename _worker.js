@@ -14,18 +14,20 @@ export default {
     }
 
     const url = new URL(request.url);
+    // Mengambil teks setelah tanda miring "/" (misal: "176.97.66.175:443")
     let pathParam = url.pathname.substring(1).trim(); 
 
     // =========================================================================
-    // FITUR 1: CEK IP SATUAN LANGSUNG VIA URL (Contoh: /176.97.66.175:443)
+    // SINKRONISASI FITUR 1: HANDLER GET UNTUK SINGLE CHECK DARI WEB UI KAMU
     // =========================================================================
     if (request.method === "GET" && pathParam.length > 0 && pathParam.includes(":")) {
       const hasilSingle = await prosesPinger([pathParam], true);
+      // Sinkronisasi: Kirim objek tunggal {} sesuai kebutuhan ".then((data) => data[0] : data)" di HTML
       return new Response(JSON.stringify(hasilSingle[0]), { headers: corsHeaders });
     }
 
     // =========================================================================
-    // FITUR 2: HANDLE MASSAL DARI WEB UI (POST REQUEST)
+    // FITUR 2: HANDLE MASSAL POST REQUEST DARI HALAMAN INPUT DASHBOARD WORKER
     // =========================================================================
     if (request.method === "POST") {
       try {
@@ -36,18 +38,17 @@ export default {
           return new Response(JSON.stringify({ error: "Format harus array 'ips'" }), { status: 400, headers: corsHeaders });
         }
 
-        // Bersihkan data dari space atau enter tidak terlihat
         daftarIp = daftarIp.map(ip => ip.replace(/[\r\n\t]/g, "").trim()).filter(ip => ip.length > 0);
 
         const hasilCheck = await prosesPinger(daftarIp, false);
         return new Response(JSON.stringify({ results: hasilCheck }), { headers: corsHeaders });
       } catch (err) {
-        return new Response(JSON.stringify({ error: "Gagal memproses pengecekan" }), { status: 400, headers: corsHeaders });
+        return new Response(JSON.stringify({ error: "Gagal memproses" }), { status: 400, headers: corsHeaders });
       }
     }
 
     // =========================================================================
-    // FRONTEND WORKER DASHBOARD
+    // FRONTEND DASHBOARD WORKER
     // =========================================================================
     return new Response(`
     <!DOCTYPE html>
@@ -56,7 +57,7 @@ export default {
     <body class="bg-gray-900 text-gray-100 p-8 flex items-center justify-center min-h-screen">
         <div class="max-w-md w-full bg-gray-800 p-6 rounded-xl shadow-xl border border-gray-700 text-center">
             <h1 class="text-xl font-bold text-purple-400 mb-2">Benxx Proxy Checker Backend</h1>
-            <p class="text-sm text-gray-400">API Aktif. Mendukung format baru:<br><code class="bg-gray-950 px-1 py-0.5 rounded text-amber-400 text-xs">IP,PORT,NEGARA,ISP</code></p>
+            <p class="text-sm text-gray-400">API Aktif & Sinkron dengan Web UI Utama.<br>Format teks GitHub: <code class="bg-gray-950 px-1 py-0.5 rounded text-amber-400 text-xs">IP,PORT,NEGARA,ISP</code></p>
         </div>
     </body>
     </html>
@@ -65,7 +66,7 @@ export default {
 };
 
 // =========================================================================
-// ENGINE UTAMA TCP SOCKET PINGER & NEW FORMAT PARSER (IP,PORT,NEGARA,ISP)
+// SINKRONISASI ENGINE UTAMA: MEMAKSA OUTPUT "proxyip: true/false"
 // =========================================================================
 async function prosesPinger(daftarIp, isStrictSingle) {
   const hasilCheck = [];
@@ -74,25 +75,23 @@ async function prosesPinger(daftarIp, isStrictSingle) {
     let ipSaja = "";
     let portSaja = 443;
     
-    // Siapkan variabel backup data seandainya diambil dari format koma GitHub
     let countryCode = "UN";
     let isp = "Unknown ISP";
     let country = "Unknown";
 
-    // 1. PROSES PEMILIHAN PARSER FORMAT
+    // Parsing format data berdasarkan jenis request
     if (!isStrictSingle && barisRaw.includes(",")) {
-      // Format koma baru: "176.97.66.175,443,AE,3nt solutions LLP"
+      // Pembacaan format GitHub: 176.97.66.175,443,AE,3nt solutions LLP
       const bagianKoma = barisRaw.split(",");
       if (bagianKoma.length >= 2) {
         ipSaja = bagianKoma[0].trim();
         portSaja = parseInt(bagianKoma[1].trim()) || 443;
       }
-      // Ambil data negara & isp bawaan GitHub jika ada sebagai cadangan awal
       if (bagianKoma.length >= 3) countryCode = bagianKoma[2].trim();
       if (bagianKoma.length >= 4) isp = bagianKoma[3].trim();
       country = countryCode; 
     } else {
-      // Format biasa IP:PORT dari URL direct check
+      // Pembacaan format GET URL Web UI: 176.97.66.175:443
       const barisBersih = barisRaw.replace("-", ":").trim();
       const bagianTitikDua = barisBersih.split(":");
       ipSaja = bagianTitikDua[0].trim();
@@ -106,7 +105,7 @@ async function prosesPinger(daftarIp, isStrictSingle) {
     let latency = "0ms";
     const startTime = Date.now();
 
-    // 2. CEK TCP SOCKET HANDSHAKE
+    // Test TCP socket koneksi nyata
     try {
       const socket = connect({ hostname: ipSaja, port: portSaja });
       await Promise.race([
@@ -121,7 +120,6 @@ async function prosesPinger(daftarIp, isStrictSingle) {
       latency = "0ms";
     }
 
-    // 3. AMBIL DATA DARI IP-API JIKA LIVE UNTUK DETEKSI ISP LEBIH LENGKAP
     if (status === "LIVE") {
       try {
         const geoRes = await fetch(`http://ip-api.com/json/${ipSaja}?fields=status,country,countryCode,isp`);
@@ -136,9 +134,11 @@ async function prosesPinger(daftarIp, isStrictSingle) {
       } catch (err) {}
     }
 
+    // DI SINI SINKRONISASINYA: Kita tambahkan 'proxyip' agar dibaca lancar oleh HTML-mu
     hasilCheck.push({
       ip: ipPortGabung,
       status: status,
+      proxyip: status === "LIVE" ? true : false, // <--- Menyuapi "proxyData.proxyip === true" di UI kamu
       latency: latency,
       provider: isp,
       country: country,
