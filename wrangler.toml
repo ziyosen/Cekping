@@ -1,16 +1,8 @@
-name = "request"
+name = "cekping"
 main = "_worker.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat_v2"]
 workers_dev = true
-
-routes = [
-  
-  { pattern = "api24-normal.tiktokv.com.benx.workers.dev", custom_domain = true },  
-  { pattern = "collection.linefriends.com.clawround.benx.workers.dev", custom_domain = true },  
-  { pattern = "support.zoom.us.clawround.benx.workers.dev", custom_domain = true },  
-  
-  ]
 
 [unsafe.metadata.observability]
 enabled = true
